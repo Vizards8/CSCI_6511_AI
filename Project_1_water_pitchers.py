@@ -32,6 +32,7 @@ def A_star(capacities, target):
     heap = [(heuristic(ini_state), 0, heuristic(ini_state), ini_state)]
     while heap:
         f, g, h, curr_state = heapq.heappop(heap)
+        # Find the answer, return total steps
         if curr_state[-1] == target:
             return g
         # Fill one water pitcher
