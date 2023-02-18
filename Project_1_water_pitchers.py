@@ -35,9 +35,11 @@ def A_star(capacities, target):
     capacities.append(float('inf'))
     n = len(capacities)
     ini_state = tuple([0 for _ in range(n)])
+    
     # use a set to store closed list
     visited = set()
     visited.add(ini_state)
+    
     # use a heap to store open list
     heap = [(heuristic(ini_state), 0, heuristic(ini_state), ini_state)]
     while heap:
