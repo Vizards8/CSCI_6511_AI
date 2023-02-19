@@ -4,7 +4,6 @@ import time
 
 
 def read_file(filename):
-    # read input file
     with open(filename, 'r') as f:
         curr = f.readline().strip()
         capacities = [int(i) for i in curr.split(',')]
@@ -16,103 +15,75 @@ def read_file(filename):
 def A_star(capacities, target):
     # calculate h(n)
     def heuristic(state):
-        remain = target - state[-1]
-
-        h = 0
-        for i in state[:-1][::-1]:
-            if not i or remain - i < 0:
-                continue
-            h_old = math.ceil(remain / max_capacity)
-            h_new = math.ceil((remain - i) / max_capacity) + 1
-            if h_new <= h_old:
-                remain -= i
-                h += 1
-
-        h += math.ceil(remain / max_capacity) * 2
+        remain = abs(target - state)
+        h = math.ceil(remain / max_capacity)
         return h
 
+    # corner case
+    # if gcd is not divisible by target, return -1
+    gcd_ = capacities[0]
+    for i in capacities:
+        gcd_ = math.gcd(gcd_, i)
+    if target % gcd_ != 0:
+        return -1, None
+
     max_capacity = max(capacities)
-    capacities.append(float('inf'))
     n = len(capacities)
-    ini_state = tuple([0 for _ in range(n)])
-    
-    # use a set to store closed list
+    ini_state = 0
     visited = set()
     visited.add(ini_state)
-    
-    # use a heap to store open list
-    heap = [(heuristic(ini_state), 0, heuristic(ini_state), ini_state)]
+    waters = [0 for _ in range(n)]
+    heap = [(heuristic(ini_state), 0, heuristic(ini_state), waters, ini_state, [])]
+
     while heap:
-        f, g, h, curr_state = heapq.heappop(heap)
+        f, g, h, curr_water, curr_state, curr_path = heapq.heappop(heap)
 
-        # Find the answer, return total steps
-        if curr_state[-1] == target:
-            return g
+        # deque the answer, return
+        if curr_state == target:
+            return g, curr_path
 
-        # Fill one water pitcher
-        for i in range(n - 1):
-            new_state = list(curr_state)
-            new_state[i] = capacities[i]
-            new_g, new_h = g + 1, heuristic(new_state)
-            new_f = new_g + new_h
-            new_state = tuple(new_state)
-            # check the new state is not visited
-            if not new_state in visited:
-                visited.add(new_state)
-                heapq.heappush(heap, (new_f, new_g, new_h, new_state))
-
-        # Empty one water pitcher
-        for i in range(n - 1):
-            new_state = list(curr_state)
-            new_state[i] = 0
-            new_g, new_h = g + 1, heuristic(new_state)
-            new_f = new_g + new_h
-            new_state = tuple(new_state)
-            # check the new state is not visited
-            if not new_state in visited:
-                visited.add(new_state)
-                heapq.heappush(heap, (new_f, new_g, new_h, new_state))
-
-        # Pour ith water pitcher -> jth water pitcher
-        # or ith water pitcher <- jth water pitcher
+        # pour any water pitcher -> the infinite one
         for i in range(n):
-            for j in range(n):
-                if i == j:
-                    continue
+            # if the new state is visited, just skip
+            if curr_state + capacities[i] in visited:
+                continue
+            new_water = curr_water[:]
+            if new_water[i]:
+                new_water[i] = 0
+                new_g = g + 1
+            else:
+                new_g = g + 2
+            # calculate the new state related variables
+            new_path = curr_path[:]
+            new_path.append(capacities[i])
+            new_state = curr_state + capacities[i]
+            new_h = heuristic(new_state)
+            new_f = new_g + new_h
+            visited.add(new_state)
+            heapq.heappush(heap, (new_f, new_g, new_h, new_water, new_state, new_path))
 
-                new_state = list(curr_state)
-
-                # ith water pitcher -> jth water pitcher
-                if new_state[i] + new_state[j] > capacities[j]:
-                    new_state[i] = new_state[i] + new_state[j] - capacities[j]
-                    new_state[j] = capacities[j]
-                else:
-                    new_state[j] = new_state[i] + new_state[j]
-                    new_state[i] = 0
-                new_g, new_h = g + 1, heuristic(new_state)
-                new_f = new_g + new_h
-                new_state = tuple(new_state)
-                # check the new state is not visited
-                if new_state[-1] <= target and not new_state in visited:
-                    visited.add(new_state)
-                    heapq.heappush(heap, (new_f, new_g, new_h, new_state))
-
-                # ith water pitcher <- jth water pitcher
-                new_state = list(curr_state)
-                if new_state[i] + new_state[j] > capacities[i]:
-                    new_state[j] = new_state[i] + new_state[j] - capacities[i]
-                    new_state[i] = capacities[i]
-                else:
-                    new_state[j] = 0
-                    new_state[i] = new_state[i] + new_state[j]
-                new_g, new_h = g + 1, heuristic(new_state)
-                new_f = new_g + new_h
-                new_state = tuple(new_state)
-                # check the new state is not visited
-                if new_state[-1] <= target and not new_state in visited:
-                    visited.add(new_state)
-                    heapq.heappush(heap, (new_f, new_g, new_h, new_state))
-    return -1
+        # pour the infinite one -> any water pitcher
+        for i in range(n):
+            # if the new state is invalid or visited, just skip
+            if curr_state - capacities[i] < 0:
+                continue
+            if curr_state - capacities[i] in visited:
+                continue
+            new_water = curr_water[:]
+            if new_water[i]:
+                new_g = g + 2
+            else:
+                new_water[i] = 1
+                new_g = g + 1
+            # calculate the new state related variables
+            new_path = curr_path[:]
+            new_path.append(-capacities[i])
+            new_state = curr_state - capacities[i]
+            new_h = heuristic(new_state)
+            new_f = new_g + new_h
+            visited.add(new_state)
+            heapq.heappush(heap, (new_f, new_g, new_h, new_water, new_state, new_path))
+    return -1, None
 
 
 # some test cases
@@ -123,13 +94,14 @@ def test(file_names):
         print(f"file name: {file_name}")
         print(f"capacities: {capacities}")
         print(f"target: {target}")
-        res = A_star(capacities, target)
+        steps, path = A_star(capacities, target)
         end = time.time()
-        print(f"res: {res}")
+        print(f"steps: {steps}")
+        print(f"path: {path}")
         print(f"time cost: {format(end - start, '.3f')}s\n")
 
 
 # main function
 if __name__ == '__main__':
-    file_names = ['input.txt', 'input1.txt', 'input2.txt', 'input3.txt']
+    file_names = ['input.txt', 'input1.txt', 'input2.txt', 'input3.txt', 'input4.txt']
     test(file_names)
