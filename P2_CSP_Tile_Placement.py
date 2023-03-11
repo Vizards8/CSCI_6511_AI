@@ -50,7 +50,9 @@ def load_data(file_name):
 
 def forward_checking(landscape, tiles, targets, curr_tiles, curr_targets, combo):
     '''
-    :param combo: [[i, type]...]
+    :param curr_tiles: number of tiles used so far
+    :param curr_targets: number of bushes visible so far
+    :param combo: [[i, type]...], put 'type' tile to the position 'i'
     :return: true, if nothing violates the constraints, and vice versa
     '''
     n = len(landscape)
@@ -81,6 +83,9 @@ def forward_checking(landscape, tiles, targets, curr_tiles, curr_targets, combo)
 
 
 def AC_3(landscape, tiles, targets, curr_tiles, curr_targets, domains):
+    '''
+    Applying AC-3: find all pairs first and apply remove_inconsistent_values() to every pair
+    '''
     queue = deque([])
     for xi in domains:
         for xj in domains:
@@ -98,6 +103,9 @@ def AC_3(landscape, tiles, targets, curr_tiles, curr_targets, domains):
 
 
 def remove_inconsistent_values(landscape, tiles, targets, curr_tiles, curr_targets, xi, xj, domains):
+    '''
+    remove all inconsistent values in xi
+    '''
     removed = False
     for value_i in domains[xi]:
         flag = False
@@ -202,6 +210,7 @@ def CSP(landscape, tiles, targets):
 def check_result(landscape, res, targets):
     '''
     Put the result back to check if it is correct
+    Cause this problem may have multiple solutions
     '''
     print('------ Check Result ------')
     n = len(landscape)
@@ -234,7 +243,7 @@ def check_result(landscape, res, targets):
 
 
 if __name__ == '__main__':
-    file_name = 'test_cases/tilesproblem_1326658913086500.txt'
+    file_name = 'test_cases/tilesproblem_1326658926570700.txt'
 
     # load data
     landscape, tiles, targets = load_data(file_name)
