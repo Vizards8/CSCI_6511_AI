@@ -1,3 +1,4 @@
+import os
 import time
 from collections import deque
 
@@ -48,7 +49,7 @@ def load_data(file_name):
     return landscape, tiles, targets
 
 
-def forward_checking(landscape, tiles, targets, curr_tiles, curr_targets, combo):
+def forward_checking(landscape, tiles, targets, visible_bushes, curr_tiles, curr_targets, combo):
     '''
     :param curr_tiles: number of tiles used so far
     :param curr_targets: number of bushes visible so far
@@ -60,18 +61,8 @@ def forward_checking(landscape, tiles, targets, curr_tiles, curr_targets, combo)
 
     for id, type in combo:
         curr_tiles[type] += 1
-        # this tile covers [x][y] to [x + 3][y + 3]
-        x, y = id % num_per_row * 4, id // num_per_row * 4
-        if type == 'EL_SHAPE':
-            for i in range(x + 1, x + 4):
-                for j in range(y + 1, y + 4):
-                    if landscape[i][j] != 0:
-                        curr_targets[landscape[i][j] - 1] += 1
-        elif type == 'OUTER_BOUNDARY':
-            for i in range(x + 1, x + 3):
-                for j in range(y + 1, y + 3):
-                    if landscape[i][j] != 0:
-                        curr_targets[landscape[i][j] - 1] += 1
+        for i in range(4):
+            curr_targets[i] += visible_bushes[id][type][i]
 
     for i in range(4):
         if curr_targets[i] > targets[i]:
@@ -82,7 +73,7 @@ def forward_checking(landscape, tiles, targets, curr_tiles, curr_targets, combo)
     return True
 
 
-def AC_3(landscape, tiles, targets, curr_tiles, curr_targets, domains):
+def AC_3(landscape, tiles, targets, visible_bushes, curr_tiles, curr_targets, domains):
     '''
     Applying AC-3: find all pairs first and apply remove_inconsistent_values() to every pair
     '''
@@ -94,7 +85,8 @@ def AC_3(landscape, tiles, targets, curr_tiles, curr_targets, domains):
             queue.append([xi, xj])
     while queue:
         xi, xj = queue.popleft()
-        if remove_inconsistent_values(landscape, tiles, targets, curr_tiles.copy(), curr_targets.copy(), xi, xj,
+        if remove_inconsistent_values(landscape, tiles, targets, visible_bushes, curr_tiles.copy(), curr_targets.copy(),
+                                      xi, xj,
                                       domains):
             for xj in domains:
                 if xi == xj or [xi, xj] in queue:
@@ -102,7 +94,7 @@ def AC_3(landscape, tiles, targets, curr_tiles, curr_targets, domains):
                 queue.append([xi, xj])
 
 
-def remove_inconsistent_values(landscape, tiles, targets, curr_tiles, curr_targets, xi, xj, domains):
+def remove_inconsistent_values(landscape, tiles, targets, visible_bushes, curr_tiles, curr_targets, xi, xj, domains):
     '''
     remove all inconsistent values in xi
     '''
@@ -111,7 +103,8 @@ def remove_inconsistent_values(landscape, tiles, targets, curr_tiles, curr_targe
         flag = False
         for value_j in domains[xj]:
             combo = [[xi, value_i], [xj, value_j]]
-            if forward_checking(landscape, tiles, targets, curr_tiles.copy(), curr_targets.copy(), combo):
+            if forward_checking(landscape, tiles, targets, visible_bushes, curr_tiles.copy(), curr_targets.copy(),
+                                combo):
                 flag = True
                 break
         if not flag:
@@ -120,7 +113,7 @@ def remove_inconsistent_values(landscape, tiles, targets, curr_tiles, curr_targe
     return removed
 
 
-def backtrack(landscape, tiles, targets, domains, id, res, curr_tiles, curr_targets):
+def backtrack(landscape, tiles, targets, visible_bushes, domains, id, res, curr_tiles, curr_targets):
     n = len(landscape)
     num_per_row = n // 4
     n_tiles = num_per_row * num_per_row
@@ -134,8 +127,9 @@ def backtrack(landscape, tiles, targets, domains, id, res, curr_tiles, curr_targ
     # MRV: minimum remaining values
     mrv_orders = []
     for i in domains:
-        mrv_orders.append([i, domains[i], len(domains[i])])
-    mrv_orders.sort(key=lambda x: x[2])
+        curr = 9 - sum(visible_bushes[i]['EL_SHAPE'])
+        mrv_orders.append([i, domains[i], len(domains[i]), curr])
+    mrv_orders.sort(key=lambda x: (x[2], x[3]))
     curr_var = mrv_orders[0][0]
     curr_values = mrv_orders[0][1]
     domains.pop(curr_var)
@@ -149,7 +143,8 @@ def backtrack(landscape, tiles, targets, domains, id, res, curr_tiles, curr_targ
                 continue
             for j in domains[i]:
                 combo = [[curr_var, value], [i, j]]
-                if not forward_checking(landscape, tiles, targets, curr_tiles.copy(), curr_targets.copy(), combo):
+                if not forward_checking(landscape, tiles, targets, visible_bushes, curr_tiles.copy(),
+                                        curr_targets.copy(), combo):
                     n_constrain += 1
         lcv_orders.append([value, n_constrain])
     lcv_orders.sort(key=lambda x: x[1])
@@ -162,13 +157,14 @@ def backtrack(landscape, tiles, targets, domains, id, res, curr_tiles, curr_targ
         curr_curr_tiles = curr_tiles.copy()
         curr_curr_targets = curr_targets.copy()
         curr_domains = {i: domains[i][:] for i in domains}
-        if forward_checking(landscape, tiles, targets, curr_curr_tiles, curr_curr_targets, combo):
+        if forward_checking(landscape, tiles, targets, visible_bushes, curr_curr_tiles, curr_curr_targets, combo):
             # Arc Consistency: AC-3
-            AC_3(landscape, tiles, targets, curr_curr_tiles.copy(), curr_curr_targets.copy(), curr_domains)
+            AC_3(landscape, tiles, targets, visible_bushes, curr_curr_tiles.copy(), curr_curr_targets.copy(),
+                 curr_domains)
             if [] in curr_domains.values():
                 continue
 
-            res1 = backtrack(landscape, tiles, targets, curr_domains, id + 1, res, curr_curr_tiles,
+            res1 = backtrack(landscape, tiles, targets, visible_bushes, curr_domains, id + 1, res, curr_curr_tiles,
                              curr_curr_targets)
             if res1:
                 return res1
@@ -197,8 +193,25 @@ def CSP(landscape, tiles, targets):
     curr_tiles = {'FULL_BLOCK': 0, 'OUTER_BOUNDARY': 0, 'EL_SHAPE': 0}
     curr_targets = [0, 0, 0, 0]
 
+    # calculate the visible bushes for every case (position: tile)
+    visible_bushes = dict()
+    for id in range(n_tiles):
+        visible_bushes[id] = {'FULL_BLOCK': [0, 0, 0, 0], 'OUTER_BOUNDARY': [0, 0, 0, 0], 'EL_SHAPE': [0, 0, 0, 0]}
+        # this tile covers [x][y] to [x + 3][y + 3]
+        x, y = id % num_per_row * 4, id // num_per_row * 4
+        # EL_SHAPE
+        for i in range(x + 1, x + 4):
+            for j in range(y + 1, y + 4):
+                if landscape[i][j] != 0:
+                    visible_bushes[id]['EL_SHAPE'][landscape[i][j] - 1] += 1
+        # OUTER_BOUNDARY
+        for i in range(x + 1, x + 3):
+            for j in range(y + 1, y + 3):
+                if landscape[i][j] != 0:
+                    visible_bushes[id]['OUTER_BOUNDARY'][landscape[i][j] - 1] += 1
+
     # backtrack begins
-    res = backtrack(landscape, tiles, targets, domains, 0, res, curr_tiles, curr_targets)
+    res = backtrack(landscape, tiles, targets, visible_bushes, domains, 0, res, curr_tiles, curr_targets)
 
     # output result
     print('------ Find Result ------')
@@ -243,7 +256,7 @@ def check_result(landscape, res, targets):
 
 
 if __name__ == '__main__':
-    file_name = 'test_cases/tilesproblem_1326658926570700.txt'
+    file_name = 'test_cases/tilesproblem_1326658913086500.txt'
 
     # load data
     landscape, tiles, targets = load_data(file_name)
