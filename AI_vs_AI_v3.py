@@ -130,6 +130,10 @@ class Player:
             if depth == 0:
                 print(
                     f"{id + 1}/{len(moves)} Player {player} tries ({i}, {j}), score: {score}, h_score: {h_score}, moves: {move_path}")
+            # if depth == 1:
+            #     print(
+            #         f"depth{depth} {id + 1}/{len(moves)} Player {player} tries ({i}, {j}), score: {score}, h_score: {h_score}, moves: {move_path}")
+            #     print(f"time cost: {time.time() - start}")
             board.board[i][j] = 0
 
             if player == self.symbol:
@@ -143,6 +147,8 @@ class Player:
                     best_path = move_path
                     alpha = max(alpha, score)
                     if beta <= alpha:
+                        # if depth <= 1:
+                        #     print(f"depth{depth} {id}/{len(moves)} alpha-beta")
                         break
             else:
                 if score == float('-inf'):
@@ -155,6 +161,8 @@ class Player:
                     best_path = move_path
                     beta = min(beta, score)
                     if beta <= alpha:
+                        # if depth <= 1:
+                        #     print(f"depth{depth} {id}/{len(moves)} alpha-beta")
                         break
 
         # if all moves will fail, just pick one
@@ -235,58 +243,66 @@ class Player:
 
         return score if self.symbol == player else -score
 
+    def heuristic_line(self, line, target, player, map):
+        '''
+        Find pattern:
+        'XXX' block = 0, count = 3
+        'OXXX' block = 1, count = 3
+        '''
+        opponent = 3 - player
+        line = [opponent] + line + [opponent]
+        n = len(line)
+        i = 0
+
+        while i < n:
+            block = 0
+            count = 0
+            while i < n and line[i] != player:
+                i += 1
+            if i == 0 or line[i - 1] == opponent:
+                block += 1
+            while i < n and line[i] == player:
+                count += 1
+                i += 1
+            if i == n or line[i] == opponent:
+                block += 1
+            if count != 0:
+                key = str(count) + ',' + str(block)
+                if not key in map:
+                    map[key] = 0
+                map[key] += 1
+
+        return
+
 
 # create the game loop
 def play_game(n, m):
     board = Board(n, m)
     players = [Player(1), Player(2)]
-    print(f'Do you want to play first-hand or second-hand?')
-    print(f'Type 1: first-hand')
-    print(f'Type 2: second-hand')
-    opponent = int(input()) - 1
-    current_player = 1 - opponent
+    current_player = 0
 
     # # debug
-    # board.board = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    # board.board = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 2, 1, 2, 2, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 0, 1, 0, 0, 0],
+    #                [0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 1, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    #                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
     # show initial board
+    print(f'Initial board:')
     board.print_board()
-    print(f'Input (i j) to make a move, i means row and j means column')
-    print(f'For example: 0 0')
 
     while True:
-        # opponent's move
-        while True:
-            print(f"Player {players[opponent].symbol}'s turn to make a move:")
-            moves = input().split()
-            row, col = [int(i) for i in moves]
-            if board.is_valid_move(row, col):
-                break
-            print(f'Not a valid move')
-
-        board.board[row][col] = players[opponent].symbol
-        board.print_board()
-
-        if board.is_win(players[opponent].symbol):
-            print(f"Player {players[opponent].symbol} wins!")
-            return
-
-        if board.is_draw():
-            print("It's a draw.")
-            return
-
-        # AI's move
         print(f"Player {players[current_player].symbol}'s turn to make a move:")
         row, col = players[current_player].get_move(board)
         board.board[row][col] = players[current_player].symbol
@@ -300,7 +316,9 @@ def play_game(n, m):
             print("It's a draw.")
             return
 
+        current_player = 1 - current_player
+
 
 if __name__ == '__main__':
     # example usage
-    play_game(12, 5)
+    play_game(12, 6)
